@@ -2,9 +2,6 @@
     if(typeof define === 'function' && define.amd) {
     //AMD
         define(['leaflet'], factory);
-    } else if(typeof module !== 'undefined') {
-    // Node/CommonJS
-        module.exports = factory(require('leaflet'));
     } else {
     // Browser globals
         if(typeof window.L === 'undefined')
@@ -50,7 +47,7 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 
 	initialize: function (baseLayers, overlays, options) {
 		L.setOptions(this, options);
-		this._layers = {};
+		this._layers = [];
 		this._groups = {};
 		this._items = {};
 		this._layersActives = [];
@@ -128,17 +125,17 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 	},
 
 	clearLayers: function() {
-		for (var id in this._layers) {
+		for (var i = 0; i < this._layers.length; i++) {
 			this.removeLayer( this._layers[id] );
 		}
 	},
 
 	_layerFromDef: function(layerDef) {
-		for (var id in this._layers) {
-
+		for (var i = 0; i < this._layers.length; i++) {
+			var id = L.stamp(this._layers[i].layer);
 			//TODO add more conditions to comaparing definitions
-			if(this._layers[id].name === layerDef.name)
-				return this._layers[id].layer;
+			if(_getLayer(id).name === layerDef.name)
+				return _getLayer(id).layer;
 		}
 	},
 
@@ -147,6 +144,22 @@ L.Control.PanelLayers = L.Control.Layers.extend({
         this._items = {};
         L.Control.Layers.prototype._update.call(this);
     },
+
+	_getLayer: function (id) {
+		for (var i = 0; i < this._layers.length; i++) {
+			if (this._layers[i] && this._layers[i].id == id) {
+				return this._layers[i];
+			}
+		}
+	},
+
+	_getLayerIndex: function (id) {
+		for (var i = 0; i < this._layers.length; i++) {
+			if (this._layers[i] && this._layers[i].id == id) {
+				return i;
+			}
+		}
+	},
 
 	_addLayer: function (layerDef, overlay, group, isCollapsed) {
 
@@ -164,11 +177,11 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 		if(layerDef.active)
 			this._layersActives.push(layerDef.layer);
 
-		this._layers[ layerDef.id ] = L.Util.extend(layerDef, {
+		this._layers.push(L.Util.extend(layerDef, {
 			collapsed: isCollapsed,			
 			overlay: overlay,
 			group: group
-		});
+		}));
 
 		if (this.options.autoZIndex && layerDef.layer && layerDef.layer.setZIndex) {
 			this._lastZIndex++;
@@ -193,9 +206,11 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 			input.defaultChecked = checked;
 			//TODO name
 		} else
-			input = this._createRadioElement('leaflet-base-layers', checked);
+			input = this._createRadioElement('leaflet-base-layers', checked, obj);
 
 		input.value = obj.id;
+		input.layerId = obj.id;
+		input.id = obj.id;
 		input._layer = obj;
 
 		L.DomEvent.on(input, 'click', function(e) {
@@ -248,9 +263,9 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 	},
 
 	// IE7 bugs out if you create a radio dynamically, so you have to do it this hacky way (see http://bit.ly/PqYLBe)
-	_createRadioElement: function (name, checked) {
+	_createRadioElement: function (name, checked, obj) {
 
-		var radioHtml = '<input type="radio" class="'+this.className+'-selector" name="' + name + '"';
+		var radioHtml = '<input type="radio" class="'+this.className+'-selector" name="' + name + '" id="' + obj.id + '"';
 		if (checked) {
 			radioHtml += ' checked="checked"';
 		}
@@ -339,7 +354,7 @@ L.Control.PanelLayers = L.Control.Layers.extend({
 
 			input = inputs[i];
 
-			obj = this._layers[ input.value ];
+			obj = this._getLayer(input.value);
 
 			if (input.checked && !this._map.hasLayer(obj.layer)) {
 				L.DomUtil.addClass(input.parentNode.parentNode, 'active');				
